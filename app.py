@@ -1,14 +1,20 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, send_file
 import os
 import torch
-import segment_model as seg
+import segformer_b1 as seg
+import deeplab
 import cv2
+import shutil
 import matplotlib.pyplot as plt
-# from ultralytics import YOLO
+import numpy as np
+from ultralytics import YOLO
+from PIL import Image
 
 app = Flask(__name__)
-# model = YOLO('yolov8n.pt')
-model = seg.init_model()
+class_model = YOLO('yolov8n.pt')
+
+## Segmentation 모델 선언
+seg_model, image_processor = seg.init_model()
 
 # Move commands with weights (11+ variations)
 move_command = [
@@ -17,31 +23,52 @@ move_command = [
 
 # Action commands with weights (15+ variations)
 action_command = [
-
 ]
 
-calculating = False
+result_dir = "results"
+os.makedirs(result_dir, exist_ok=True)
+latest_result = os.path.join(result_dir, "latest_result.png")
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 @app.route('/detect', methods=['POST'])
 def detect():
     print('start detecting')
 
-
-    calculating = True
     image = request.files.get('image')
     if not image:
         return jsonify({"error": "No image received"}), 400
 
     image_path = 'temp_image.jpg'
     image.save(image_path)
-    cv_image = cv2.imread(image_path)
 
-    image_tensor, image_rgb = seg.preprocess_image(cv_image)
-    pred_mask = seg.predict_segmentation(model, image_tensor)
-    cv2.imshow(pred_mask)
-    
+    prediction = seg.predict_segmentation(image_path, seg_model, image_processor)
+    seg.visualize_segmentation(image_path, prediction, latest_result)
 
-    return jsonify([]), 200
+    results = class_model(image_path)
+    detections = results[0].boxes.data.cpu().numpy()
+
+    target_classes = {0: "person", 2: "car", 7: "truck", 15: "rock"}
+    filtered_results = []
+    for box in detections:
+        class_id = int(box[5])
+        if class_id in target_classes:
+            filtered_results.append({
+                'className': target_classes[class_id],
+                'bbox': [float(coord) for coord in box[:4]],
+                'confidence': float(box[4])
+            })
+
+    return (filtered_results), 200
+
+@app.route('/latest_result')
+def get_latest_result():
+    if os.path.exists(latest_result):
+        return send_file(latest_result, mimetype='image/png')
+    else:
+        return jsonify({"error": "No result available"}), 404
 
 @app.route('/info', methods=['POST'])
 def info():
@@ -145,5 +172,5 @@ def start():
     return jsonify({"control": ""})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5050, debug=True)
 
