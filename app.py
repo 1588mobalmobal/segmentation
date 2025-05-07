@@ -2,11 +2,7 @@ from flask import Flask, request, jsonify, render_template, send_file
 import os
 import torch
 import segformer_b1 as seg
-<<<<<<< HEAD
 # import deeplab
-=======
-import deeplab
->>>>>>> bb72176e6ba21eae86cd3c1e7c3b8bb9d1cf0308
 import cv2
 import shutil
 import matplotlib.pyplot as plt
@@ -176,9 +172,4 @@ def start():
     return jsonify({"control": ""})
 
 if __name__ == '__main__':
-<<<<<<< HEAD
     app.run(host='0.0.0.0', port=5050, debug=True)
-=======
-    app.run(host='0.0.0.0', port=5050, debug=True)
-
->>>>>>> bb72176e6ba21eae86cd3c1e7c3b8bb9d1cf0308
